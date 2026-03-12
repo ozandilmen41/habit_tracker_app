@@ -1,98 +1,169 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
-
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+import HabitList from "@/components/HabitList";
+import HabitSelectionModal from "@/components/HabitSelectionModal";
+import { useHabitStore } from "@/store/useHabitStore";
+import { useRouter } from "expo-router";
+import { useMemo, useState } from "react";
+import { Modal, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function HomeScreen() {
-  return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+  const router = useRouter();
+  const activeSession = useHabitStore((state) => state.activeSession);
+  const habits = useHabitStore((state) => state.habits);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [dayLogModal, setDayLogModal] = useState<{
+    visible: boolean;
+    habitName: string;
+    minutes: number;
+  }>({ visible: false, habitName: "", minutes: 0 });
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+  const last14Days = useMemo(() => {
+    const dates: string[] = [];
+    const today = new Date();
+
+    for (let i = 0; i < 14; i++) {
+      const date = new Date(today);
+      date.setDate(today.getDate() - i);
+      const dateString = date.toISOString().split("T")[0];
+      dates.push(dateString);
+    }
+
+    return dates;
+  }, []);
+
+  const handleTimerPress = () => {
+    if (activeSession) {
+      router.push("/timer");
+      return;
+    }
+
+    setModalVisible(true);
+  };
+
+  const handleDayPress = (habitId: string, date: string, minutes: number) => {
+    const habit = habits.find((h) => h.id === habitId);
+    setDayLogModal({
+      visible: true,
+      habitName: habit?.name || "Alışkanlık",
+      minutes,
+    });
+  };
+
+  return (
+    <SafeAreaView style={styles.container} edges={["top"]}>
+      <View style={styles.content}>
+        <HabitList dates={last14Days} onDayPress={handleDayPress} />
+      </View>
+
+      <View style={styles.floatingButtonContainer}>
+        <TouchableOpacity
+          style={styles.floatingButton}
+          onPress={handleTimerPress}
+          activeOpacity={0.8}
+        >
+          <Text style={styles.buttonText}>
+            {activeSession ? "Devam Et" : "Sayaç Başlat"}
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      <HabitSelectionModal
+        visible={modalVisible}
+        onClose={() => setModalVisible(false)}
+      />
+
+      <Modal
+        visible={dayLogModal.visible}
+        transparent
+        animationType="fade"
+        onRequestClose={() =>
+          setDayLogModal({ ...dayLogModal, visible: false })
+        }
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setDayLogModal({ ...dayLogModal, visible: false })}
+        >
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>
+              {dayLogModal.minutes > 0
+                ? `${dayLogModal.minutes} dakika`
+                : "Aktivite Kaydı Yok"}
+            </Text>
+            <Text style={styles.modalMessage}>
+              {dayLogModal.minutes > 0
+                ? `${dayLogModal.habitName} yaptınız.`
+                : "Bugün için bir aktivite kaydı yok."}
+            </Text>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+  container: {
+    flex: 1,
+    backgroundColor: "#111827",
   },
-  stepContainer: {
-    gap: 8,
+  content: {
+    flex: 1,
+  },
+  floatingButtonContainer: {
+    position: "absolute",
+    bottom: 24,
+    left: 0,
+    right: 0,
+    alignItems: "center",
+    pointerEvents: "box-none",
+  },
+  floatingButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#22c55e",
+    paddingHorizontal: 24,
+    paddingVertical: 14,
+    borderRadius: 28,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  buttonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.7)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalContent: {
+    backgroundColor: "#1f2937",
+    borderRadius: 16,
+    padding: 24,
+    marginHorizontal: 32,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#374151",
+  },
+  modalTitle: {
+    fontSize: 24,
+    fontWeight: "700",
+    color: "#f9fafb",
     marginBottom: 8,
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
+  modalMessage: {
+    fontSize: 16,
+    color: "#9ca3af",
+    textAlign: "center",
   },
 });
